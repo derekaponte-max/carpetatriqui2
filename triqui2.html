@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 Triqui Deluxe</title>
+<style>
+  * {
+    box-sizing: border-box;
+    font-family: "Poppins", sans-serif;
+  }
+
+  body {
+    background: linear-gradient(135deg, #6D83F2, #8B4DFF);
+    height: 100vh;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-size: 2.3em;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+  }
+
+  #game-container {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 25px;
+    border-radius: 15px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    text-align: center;
+    backdrop-filter: blur(8px);
+  }
+
+  select {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    font-size: 16px;
+    margin: 10px 0 20px;
+    cursor: pointer;
+    color: #333;
+  }
+
+  #tablero {
+    display: grid;
+    grid-template-columns: repeat(3, 100px);
+    gap: 8px;
+    justify-content: center;
+    margin: 15px auto;
+  }
+
+  .celda {
+    width: 100px;
+    height: 100px;
+    background: rgba(255, 255, 255, 0.25);
+    border: 2px solid white;
+    font-size: 2.5em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    transition: background 0.3s, transform 0.2s;
+    cursor: pointer;
+  }
+
+  .celda:hover {
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(1.05);
+  }
+
+  .celda.X {
+    color: #FFEB3B;
+    text-shadow: 0 0 10px #FFF176;
+  }
+
+  .celda.O {
+    color: #00E5FF;
+    text-shadow: 0 0 10px #80D8FF;
+  }
+
+  #mensaje {
+    font-size: 1.3em;
+    margin-top: 15px;
+    min-height: 30px;
+  }
+
+  #reiniciar {
+    margin-top: 20px;
+    padding: 10px 25px;
+    font-size: 16px;
+    background: #FF4081;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  #reiniciar:hover {
+    background: #E91E63;
+  }
+
+  footer {
+    margin-top: 25px;
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+
+  /* Confeti */
+  .confeti {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--color);
+    top: 0;
+    border-radius: 50%;
+    animation: caer 3s linear forwards;
+  }
+
+  @keyframes caer {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <h1>🎮 Triqui Deluxe</h1>
+
+  <select id="modo">
+    <option value="jugador">👥 Jugador vs Jugador</option>
+    <option value="bot">🤖 Jugador vs Bot</option>
+  </select>
+
+  <div id="tablero"></div>
+
+  <div id="mensaje"></div>
+  <button id="reiniciar">🔁 Reiniciar</button>
+</div>
+
+<footer>Desarrollado con 💙 por ChatGPT</footer>
+
+<!-- Sonidos -->
+<audio id="sonidoClick" src="https://assets.mixkit.co/active_storage/sfx/1399/1399-preview.mp3"></audio>
+<audio id="sonidoWin" src="https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3"></audio>
+<audio id="sonidoEmpate" src="https://assets.mixkit.co/active_storage/sfx/1434/1434-preview.mp3"></audio>
+
+<script>
+  const tablero = document.getElementById("tablero");
+  const mensaje = document.getElementById("mensaje");
+  const modoSelect = document.getElementById("modo");
+  const reiniciarBtn = document.getElementById("reiniciar");
+
+  const sonidoClick = document.getElementById("sonidoClick");
+  const sonidoWin = document.getElementById("sonidoWin");
+  const sonidoEmpate = document.getElementById("sonidoEmpate");
+
+  let celdas;
+  let turno = "X";
+  let modo = "jugador";
+  let juegoActivo = true;
+  let tableroEstado = ["", "", "", "", "", "", "", "", ""];
+
+  function crearTablero() {
+    tablero.innerHTML = "";
+    for (let i = 0; i < 9; i++) {
+      const celda = document.createElement("div");
+      celda.classList.add("celda");
+      celda.dataset.index = i;
+      celda.addEventListener("click", manejarClick);
+      tablero.appendChild(celda);
+    }
+    celdas = document.querySelectorAll(".celda");
+  }
+
+  function manejarClick(e) {
+    const index = e.target.dataset.index;
+    if (tableroEstado[index] !== "" || !juegoActivo) return;
+
+    sonidoClick.currentTime = 0;
+    sonidoClick.play();
+
+    tableroEstado[index] = turno;
+    e.target.textContent = turno;
+    e.target.classList.add(turno);
+
+    if (verificarGanador(turno)) {
+      mensaje.innerHTML = `🎉 ¡Jugador <strong>${turno}</strong> gana!`;
+      resaltarGanador(turno);
+      lanzarConfeti();
+      sonidoWin.play();
+      juegoActivo = false;
+      return;
+    } else if (!tableroEstado.includes("")) {
+      mensaje.textContent = "🤝 ¡Empate!";
+      sonidoEmpate.play();
+      juegoActivo = false;
+      return;
+    }
+
+    turno = turno === "X" ? "O" : "X";
+
+    if (modo === "bot" && turno === "O" && juegoActivo) {
+      setTimeout(turnoBot, 500);
+    }
+  }
+
+  function turnoBot() {
+    const posicionesLibres = tableroEstado
+      .map((val, i) => (val === "" ? i : null))
+      .filter(i => i !== null);
+
+    if (posicionesLibres.length === 0) return;
+
+    const eleccion = posicionesLibres[Math.floor(Math.random() * posicionesLibres.length)];
+    tableroEstado[eleccion] = "O";
+    const celda = celdas[eleccion];
+    celda.textContent = "O";
+    celda.classList.add("O");
+    sonidoClick.play();
+
+    if (verificarGanador("O")) {
+      mensaje.innerHTML = "🤖 ¡El BOT gana!";
+      resaltarGanador("O");
+      lanzarConfeti();
+      sonidoWin.play();
+      juegoActivo = false;
+    } else if (!tableroEstado.includes("")) {
+      mensaje.textContent = "🤝 ¡Empate!";
+      sonidoEmpate.play();
+      juegoActivo = false;
+    } else {
+      turno = "X";
+    }
+  }
+
+  function verificarGanador(jugador) {
+    const combinaciones = [
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
+    ];
+    return combinaciones.some(combo =>
+      combo.every(index => tableroEstado[index] === jugador)
+    );
+  }
+
+  function resaltarGanador(jugador) {
+    const combinaciones = [
+      [0,1,2], [3,4,5], [6,7,8],
+      [0,3,6], [1,4,7], [2,5,8],
+      [0,4,8], [2,4,6]
+    ];
+    combinaciones.forEach(combo => {
+      if (combo.every(i => tableroEstado[i] === jugador)) {
+        combo.forEach(i => {
+          celdas[i].style.background = "rgba(255,255,255,0.7)";
+          celdas[i].style.transform = "scale(1.1)";
+        });
+      }
+    });
+  }
+
+  // 🎉 Confeti animado
+  function lanzarConfeti() {
+    for (let i = 0; i < 50; i++) {
+      const confeti = document.createElement("div");
+      confeti.classList.add("confeti");
+      confeti.style.left = Math.random() * 100 + "vw";
+      confeti.style.setProperty("--color", getRandomColor());
+      confeti.style.animationDuration = 2 + Math.random() * 3 + "s";
+      document.body.appendChild(confeti);
+      setTimeout(() => confeti.remove(), 4000);
+    }
+  }
+
+  function getRandomColor() {
+    const colores = ["#FFEB3B", "#00E5FF", "#FF4081", "#69F0AE", "#FF9100"];
+    return colores[Math.floor(Math.random() * colores.length)];
+  }
+
+  function reiniciar() {
+    tableroEstado = ["", "", "", "", "", "", "", "", ""];
+    turno = "X";
+    juegoActivo = true;
+    mensaje.textContent = "";
+    crearTablero();
+  }
+
+  modoSelect.addEventListener("change", (e) => {
+    modo = e.target.value;
+    reiniciar();
+  });
+
+  reiniciarBtn.addEventListener("click", reiniciar);
+
+  crearTablero();
+</script>
+
+</body>
+</html>
